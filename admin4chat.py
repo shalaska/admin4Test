@@ -3,7 +3,11 @@ import time
 import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
-import argparse
+from functions import*
+
+
+st.title('Admin4bot')
+st.caption("Ask any questions related to admin4 or patterns")
 
 load_dotenv()
 gemini_api_key = os.getenv("GOOGLE_API_KEY")
@@ -68,10 +72,8 @@ files = [
 # Some files have a processing delay. Wait for them to be ready.
 wait_for_files_active(files)
 
-input_message = input("Enter your message for the Gemini API: ")
-
-chat_session = model.start_chat(
-history=[
+if "chat_session" not in st.session_state:
+    st.session_state.chat_session = model.start_chat(history=[
     {
       "role": "user",
       "parts": [
@@ -79,9 +81,27 @@ history=[
         files[1]
       ]
     }
-  ]
-)
+  ])
 
-response = chat_session.send_message(input_message)
 
-print(response.text)
+for msg in st.session_state.chat_session.history:
+    with st.chat_message(map_role(msg["role"])):
+        st.markdown(msg["content"])
+
+user_input = st.chat_input("Ask Admin4 bot...")
+
+
+if user_input:
+    # Add user's message to chat and display it
+    st.chat_message("user").markdown(user_input)
+
+    # Send user's message to Gemini and get the response
+    gemini_response = fetch_gemini_response(user_input)
+
+    # Display Gemini's response
+    with st.chat_message("assistant"):
+        st.markdown(gemini_response)
+
+    # Add user and assistant messages to the chat history
+    st.session_state.chat_session.history.append({"role": "user", "content": user_input})
+    st.session_state.chat_session.history.append({"role": "model", "content": gemini_response})
