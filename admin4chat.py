@@ -10,10 +10,8 @@ st.set_page_config(layout="wide")
 
 # --- Admin4bot ---
 st.image('/workspaces/admin4Test/Nevis Icon Blue (1).svg', width=100) 
-st.title('Admin4bot')
+st.title('Admin4 Assistant')
 st.caption("Ask any questions related to admin4 or patterns")
-
-
 
 
 # --- Gemini setup ---
