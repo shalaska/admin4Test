@@ -104,7 +104,8 @@ for msg in st.session_state.chat_session.history:
         if hasattr(msg.parts[0], 'text'):  
             st.markdown(msg.parts[0].text)
 
-user_input = st.chat_input("Ask Admin4 bot...")
+
+user_input = st.chat_input("Ask Admin4 assistant anything...")
 
 if user_input:
     st.chat_message("user").markdown(user_input)
