@@ -9,11 +9,8 @@ from dotenv import load_dotenv
 st.set_page_config(layout="wide")
 
 # --- Admin4bot ---
-<<<<<<< HEAD
-st.image('https://github.com/nevissecurity', width=100) 
-=======
+
 st.image('nevis.svg', width=100) 
->>>>>>> adddc86 (fix naming)
 st.title('Admin4 Assistant')
 st.caption("Ask any questions related to admin4 or patterns")
 
