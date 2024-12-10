@@ -79,7 +79,7 @@ def initialize_context_cache():
     cache_name = "Nevis Docs Cache"
     try:
         # Check if the cache already exists
-        existing_caches = caching.CachedContent.list()
+        existing_caches = list(caching.CachedContent.list())  # Convert to list here
         for existing_cache in existing_caches:
             if existing_cache.display_name == cache_name:
                 print(f"Using existing cache: {existing_cache.display_name}")
