@@ -61,6 +61,19 @@ def create_context_cache(files, model_name, display_name, ttl_minutes):
     print(f"Created cache '{cache.display_name}' with ID: {cache.name}")
     return cache
 
+def delete_oldest_caches(existing_caches):
+    """Deletes the oldest caches to free up space."""
+    try:
+        # Sort caches by creation time (oldest first)
+        sorted_caches = sorted(existing_caches, key=lambda x: x.create_time)
+        for cache in sorted_caches:
+            print(f"Deleting old cache: {cache.display_name} (ID: {cache.name})")
+            caching.CachedContent.delete(cache.name)
+            # Break after deleting one cache to avoid over-deleting
+            break
+    except Exception as e:
+        print(f"Failed to delete old caches: {e}")
+
 @st.cache_resource
 def initialize_context_cache():
     cache_name = "Nevis Docs Cache"
@@ -91,24 +104,21 @@ def initialize_context_cache():
     except Exception as e:
         raise Exception(f"Failed to initialize context cache: {e}")
 
-def delete_oldest_caches(existing_caches):
-    """Deletes the oldest caches to free up space."""
-    try:
-        # Sort caches by creation time (oldest first)
-        sorted_caches = sorted(existing_caches, key=lambda x: x.create_time)
-        for cache in sorted_caches:
-            print(f"Deleting old cache: {cache.display_name} (ID: {cache.name})")
-            caching.CachedContent.delete(cache.name)
-            # Break after deleting one cache to avoid over-deleting
-            break
-    except Exception as e:
-        print(f"Failed to delete old caches: {e}")
 
 # Initialize the context cache
 cache = initialize_context_cache()
 
 # Use cached context in the model
 model = genai.GenerativeModel.from_cached_content(cached_content=cache)
+
+# System configuration
+generation_config = {
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "response_mime_type": "text/plain",
+}
 
 def fetch_gemini_response(user_input, chat_session):
     """Fetches a response from the Gemini model."""
@@ -119,36 +129,40 @@ def fetch_gemini_response(user_input, chat_session):
         print(f"An error occurred while fetching the response: {e}")
         return "I'm sorry, I encountered an error while processing your request."
 
+# Initialize chat session
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[
         {"role": "user", "parts": [{"text": "Added Nevis docs"}]},
         {"role": "assistant", "parts": [{"text": "Nevis docs processed and ready for questions."}]}
     ])
 
-# Render chat history
-for msg in st.session_state.chat_session.history:
-    role = getattr(msg, "role", "assistant")  # Default to "assistant" if role is missing
-    with st.chat_message("user" if role == "user" else "assistant"):
-        text = getattr(msg.parts[0], "text", None) if msg.parts else None
-        if text:
-            st.markdown(text)
+# Initialize chat history in session state if not present
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Render chat history from session state
+for message in st.session_state.chat_history:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
 # Input for new user queries
 user_input = st.chat_input("Ask Admin4 assistant anything...")
 
 if user_input:
+    # Display the user message immediately
     st.chat_message("user").markdown(user_input)
+    st.session_state.chat_history.append({"role": "user", "content": user_input}) 
+
     with st.spinner("Thinking..."):
         try:
+            # Fetch Gemini response
             gemini_response = fetch_gemini_response(user_input, st.session_state.chat_session)
-            with st.chat_message("assistant"):
-                st.markdown(gemini_response)
-            # Append user input and response to chat history
-            st.session_state.chat_session.history.append(
-                {"role": "user", "parts": [{"text": user_input}]}
-            )
-            st.session_state.chat_session.history.append(
-                {"role": "assistant", "parts": [{"text": gemini_response}]}
-            )
+
+            # Update chat history in session state
+            st.session_state.chat_history.append({"role": "assistant", "content": gemini_response})
+
+            # Display the assistant response
+            st.chat_message("assistant").markdown(gemini_response)
+
         except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
+            st.error(f"An error occurred: {e}")
