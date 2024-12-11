@@ -227,7 +227,7 @@ for message in st.session_state.chat_history:
         st.markdown(message["content"])
 
 # Input for new user queries
-user_input = st.chat_input("Ask Admin4 assistant anything...")
+user_input = st.chat_input("Ask Neivs Copilot anything...")
 
 
 if user_input:
