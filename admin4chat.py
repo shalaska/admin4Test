@@ -1,17 +1,17 @@
 import os
 import time
 import datetime
+import uuid
 import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
 from google.generativeai import caching
 
-
 # Set page config to wide mode
 st.set_page_config(layout="wide")
 
 # --- Admin4bot ---
-st.image('nevis.svg', width=100) 
+st.image('nevis.svg', width=100)  # Replace 'nevis.svg' with the actual path to your image
 st.title('Nevis Copilot')
 st.caption("Experience the future of Nevis configuration with our AI assistant")
 
@@ -62,49 +62,50 @@ def create_context_cache(files, model_name, display_name, ttl_minutes):
     print(f"Created cache '{cache.display_name}' with ID: {cache.name}")
     return cache
 
-def delete_oldest_caches(existing_caches):
-    """Deletes the oldest caches to free up space."""
+def delete_oldest_caches(existing_caches, current_cache_name):
+    """Deletes the oldest caches, excluding the current cache."""
     try:
-        # Sort caches by creation time (oldest first)
-        sorted_caches = sorted(existing_caches, key=lambda x: x.create_time)
-        for cache in sorted_caches:
-            print(f"Deleting old cache: {cache.display_name} (ID: {cache.name})")
-            caching.CachedContent.delete(cache.name)
-            # Break after deleting one cache to avoid over-deleting
-            break
+        # Exclude the current cache from deletion
+        caches_to_delete = [cache for cache in existing_caches
+                            if cache.display_name != current_cache_name]
+
+        # Sort remaining caches by creation time (oldest first)
+        sorted_caches = sorted(caches_to_delete, key=lambda x: x.create_time)
+
+        # Delete only if there are caches to delete
+        if sorted_caches:
+            cache_to_delete = sorted_caches[0]  # Delete the oldest one
+            print(f"Deleting old cache: {cache_to_delete.display_name} (ID: {cache_to_delete.name})")
+            caching.CachedContent.delete(cache_to_delete.name)
+
     except Exception as e:
         print(f"Failed to delete old caches: {e}")
 
 @st.cache_resource
 def initialize_context_cache():
-    cache_name = "Nevis Docs Cache"
+    # Generate a unique cache name using a UUID
+    cache_name = f"Nevis Docs Cache - {uuid.uuid4()}"
     try:
-        # Check if the cache already exists
-        existing_caches = list(caching.CachedContent.list())  # Convert to list here
-        for existing_cache in existing_caches:
-            if existing_cache.display_name == cache_name:
-                print(f"Using existing cache: {existing_cache.display_name}")
-                return existing_cache
+        existing_caches = list(caching.CachedContent.list())
 
         # If the cache limit is exceeded, clean up older caches
-        max_cache_limit = 10  # Adjust based on your quota
+        max_cache_limit = 10
         if len(existing_caches) >= max_cache_limit:
             print(f"Cache limit exceeded ({len(existing_caches)}/{max_cache_limit}). Cleaning up old caches...")
-            delete_oldest_caches(existing_caches)
+            delete_oldest_caches(existing_caches, cache_name)
 
-        # Create a new cache if none exists
+        # Create a new cache
         files = load_and_upload_files()
         new_cache = create_context_cache(
             files=files,
             model_name="gemini-1.5-flash-002",
             display_name=cache_name,
-            ttl_minutes=60
+            ttl_minutes=1440  # Increased TTL to 24 hours
         )
         return new_cache
 
     except Exception as e:
         raise Exception(f"Failed to initialize context cache: {e}")
-
 
 # Initialize the context cache
 cache = initialize_context_cache()
@@ -122,17 +123,14 @@ generation_config = {
 }
 
 def fetch_gemini_response(user_input, chat_session):
-  """Fetches a response from the Gemini model."""
-  try:
-    response = chat_session.send_message(user_input)
-    # Assuming you have a way to send JSON responses in your framework
-    return {"response": response.text, "error": None} 
-  except Exception as e:
-    error_message = f"An error occurred while fetching the response: {e}"
-    print(error_message)  # Log the error on the server
-    # Assuming you have a way to send JSON responses in your framework
-    return {"response": None, "error": error_message}
-  
+    """Fetches a response from the Gemini model."""
+    try:
+        response = chat_session.send_message(user_input)
+        return {"response": response.text, "error": None}
+    except Exception as e:
+        error_message = f"An error occurred while fetching the response: {e}"
+        print(error_message)
+        return {"response": None, "error": error_message}
 
 # Initialize chat session
 if "chat_session" not in st.session_state:
@@ -156,18 +154,20 @@ user_input = st.chat_input("Ask Admin4 assistant anything...")
 if user_input:
     # Display the user message immediately
     st.chat_message("user").markdown(user_input)
-    st.session_state.chat_history.append({"role": "user", "content": user_input}) 
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
 
     with st.spinner("Thinking..."):
         try:
             # Fetch Gemini response
             gemini_response = fetch_gemini_response(user_input, st.session_state.chat_session)
 
-            # Update chat history in session state
-            st.session_state.chat_history.append({"role": "assistant", "content": gemini_response})
-
-            # Display the assistant response
-            st.chat_message("assistant").markdown(gemini_response)
+            # Check for errors in the response
+            if gemini_response.get("error"):
+                st.error(gemini_response["error"])  # Display the error message
+            else:
+                # Update chat history and display the response
+                st.session_state.chat_history.append({"role": "assistant", "content": gemini_response["response"]})
+                st.chat_message("assistant").markdown(gemini_response["response"])
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
