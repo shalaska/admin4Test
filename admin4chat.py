@@ -7,6 +7,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from google.generativeai import caching
 
+
 # Set page config to wide mode
 st.set_page_config(layout="wide")
 
@@ -21,9 +22,23 @@ gemini_api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=gemini_api_key)
 
 def upload_to_gemini(path, mime_type=None):
-    """Uploads the given file to Gemini."""
-    file = genai.upload_file(path, mime_type=mime_type)
-    print(f"Uploaded file '{file.display_name}' as: {file.uri}")
+    """Uploads the given file to Gemini, but only if it hasn't been uploaded already."""
+    # Get a list of existing files in Gemini
+    existing_files = list(genai.list_files())
+    existing_file_names = [file.display_name for file in existing_files]
+
+    # Check if the file has already been uploaded
+    if os.path.basename(path) in existing_file_names:
+        print(f"File '{path}' already exists in Gemini. Skipping upload.")
+        # Find the existing file object
+        file = next((file for file in existing_files if file.display_name == os.path.basename(path)), None)
+        if file is None:
+            raise ValueError(f"Could not find existing file object for '{path}'")
+    else:
+        # If the file doesn't exist, upload it
+        file = genai.upload_file(path, mime_type=mime_type)
+        print(f"Uploaded file '{file.display_name}' as: {file.uri}")
+
     return file
 
 def wait_for_files_active(files):
@@ -33,12 +48,11 @@ def wait_for_files_active(files):
         while file.state.name == "PROCESSING":
             print(".", end="", flush=True)
             time.sleep(10)
-            file = genai.get_file(file.name)
+            file = genai.get_file(file.name)  # Refresh file status
         if file.state.name != "ACTIVE":
-            raise Exception(f"File {file.name} failed to process")
+            raise Exception(f"File {file.name} failed to process: {file.state.name}")
     print("...all files ready")
 
-@st.cache_resource
 def load_and_upload_files():
     files = [
         upload_to_gemini("patternspdf-compressed-compressed-pages-1.pdf", mime_type="application/pdf"),
@@ -48,19 +62,36 @@ def load_and_upload_files():
         upload_to_gemini("patternspdf-compressed-compressed-pages-5.pdf", mime_type="application/pdf"),
         upload_to_gemini("webapp_relevant_docs.txt", mime_type="text/plain")
     ]
+    print(files)  # Print the list to inspect its contents
+    for file in files:
+        print(type(file))  # Print the type of each element
     wait_for_files_active(files)
     return files
 
 def create_context_cache(files, model_name, display_name, ttl_minutes):
     """Creates a context cache with the specified files."""
-    cache = caching.CachedContent.create(
-        model=model_name,
-        display_name=display_name,
-        contents=files,
-        ttl=datetime.timedelta(minutes=ttl_minutes),
-    )
-    print(f"Created cache '{cache.display_name}' with ID: {cache.name}")
-    return cache
+    try:
+        cache = caching.CachedContent.create(
+            model=model_name,
+            display_name=display_name,
+            contents=files,
+            ttl=datetime.timedelta(minutes=ttl_minutes),
+        )
+        print(f"Created cache '{cache.display_name}' with ID: {cache.name}")
+        return cache
+    except Exception as e:
+        print(f"Error creating cache: {e}")
+        # Check if the error is related to the quota
+        if "TotalCachedContentStorageTokensPerModelFreeTier limit exceeded" in str(e):
+            return None
+        elif "'str' object has no attribute 'name'" in str(e):  # Check for the specific error
+            print("Error: One of the files is not a valid File object.")
+            return None
+        else:
+            raise  # Re-raise other exceptions
+
+
+
 
 def delete_oldest_caches(existing_caches, current_cache_name):
     """Deletes the oldest caches, excluding the current cache."""
@@ -76,32 +107,44 @@ def delete_oldest_caches(existing_caches, current_cache_name):
         if sorted_caches:
             cache_to_delete = sorted_caches[0]  # Delete the oldest one
             print(f"Deleting old cache: {cache_to_delete.display_name} (ID: {cache_to_delete.name})")
-            caching.CachedContent.delete(cache_to_delete.name)
+            caching.CachedContent.delete(cache_to_delete)
 
     except Exception as e:
         print(f"Failed to delete old caches: {e}")
 
 @st.cache_resource
 def initialize_context_cache():
-    # Generate a unique cache name using a UUID
     cache_name = f"Nevis Docs Cache - {uuid.uuid4()}"
     try:
-        existing_caches = list(caching.CachedContent.list())
-
-        # If the cache limit is exceeded, clean up older caches
-        max_cache_limit = 10
-        if len(existing_caches) >= max_cache_limit:
-            print(f"Cache limit exceeded ({len(existing_caches)}/{max_cache_limit}). Cleaning up old caches...")
-            delete_oldest_caches(existing_caches, cache_name)
-
-        # Create a new cache
         files = load_and_upload_files()
-        new_cache = create_context_cache(
-            files=files,
-            model_name="gemini-1.5-flash-002",
-            display_name=cache_name,
-            ttl_minutes=1440  # Increased TTL to 24 hours
-        )
+
+        # Attempt to create the cache with retries
+        max_retries = 3
+        retries = 0
+        while retries < max_retries:
+            new_cache = create_context_cache(
+                files=files,
+                model_name="gemini-1.5-flash-002",
+                display_name=cache_name,
+                ttl_minutes=1440
+            )
+            if new_cache:
+                break  # Cache created successfully
+            else:
+                retries += 1
+                print(f"Cache creation failed (attempt {retries}/{max_retries}). Clearing existing caches and retrying...")
+
+                # Clear all existing caches ONLY on retry
+                existing_caches = list(caching.CachedContent.list())
+                for cache in existing_caches:
+                    print(f"Deleting cache: {cache.display_name} (ID: {cache.name})")
+                    caching.CachedContent.delete(cache)
+
+                time.sleep(5)
+
+        if new_cache is None:
+            raise Exception("Failed to create cache after multiple retries.")
+
         return new_cache
 
     except Exception as e:
