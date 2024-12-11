@@ -6,6 +6,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from google.generativeai import caching
 
+
 # Set page config to wide mode
 st.set_page_config(layout="wide")
 
@@ -124,12 +125,15 @@ def fetch_gemini_response(user_input, chat_session):
   """Fetches a response from the Gemini model."""
   try:
     response = chat_session.send_message(user_input)
-    print(f"Gemini response: {response.text}")  # Log the response to the console
-    return response.text
+    # Assuming you have a way to send JSON responses in your framework
+    return {"response": response.text, "error": None} 
   except Exception as e:
-    print(f"An error occurred while fetching the response: {e}")  # Log the error to the console
-    return "I'm sorry, I encountered an error while processing your request."
+    error_message = f"An error occurred while fetching the response: {e}"
+    print(error_message)  # Log the error on the server
+    # Assuming you have a way to send JSON responses in your framework
+    return {"response": None, "error": error_message}
   
+
 # Initialize chat session
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[
