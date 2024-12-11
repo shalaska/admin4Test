@@ -15,6 +15,28 @@ st.set_page_config(layout="wide")
 st.image('nevis.svg', width=100)  # Replace 'nevis.svg' with the actual path to your image
 st.title('Nevis Copilot')
 st.caption("Experience the future of Nevis configuration with our AI assistant")
+# Add HTML with CSS to create a sticky footer
+st.markdown(
+    """
+    <style>
+        .sticky-footer {
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: #f0f0f5; 
+            padding: 10px;
+            text-align: center;
+            z-index: 100; /* Add this line */
+        }
+    </style>
+    <div class="sticky-footer">
+        The Nevis Copilot is an experimental AI assistant. The answers may contain errors and should be carefully reviewed.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 
 # --- Gemini setup ---
 load_dotenv()
@@ -193,6 +215,7 @@ for message in st.session_state.chat_history:
 
 # Input for new user queries
 user_input = st.chat_input("Ask Admin4 assistant anything...")
+
 
 if user_input:
     # Display the user message immediately
