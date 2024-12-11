@@ -121,14 +121,15 @@ generation_config = {
 }
 
 def fetch_gemini_response(user_input, chat_session):
-    """Fetches a response from the Gemini model."""
-    try:
-        response = chat_session.send_message(user_input)
-        return response.text
-    except Exception as e:
-        print(f"An error occurred while fetching the response: {e}")
-        return "I'm sorry, I encountered an error while processing your request."
-
+  """Fetches a response from the Gemini model."""
+  try:
+    response = chat_session.send_message(user_input)
+    print(f"Gemini response: {response.text}")  # Log the response to the console
+    return response.text
+  except Exception as e:
+    print(f"An error occurred while fetching the response: {e}")  # Log the error to the console
+    return "I'm sorry, I encountered an error while processing your request."
+  
 # Initialize chat session
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[
