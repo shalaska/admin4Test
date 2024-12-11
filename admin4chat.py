@@ -14,7 +14,7 @@ st.set_page_config(layout="wide")
 # --- Admin4bot ---
 st.image('nevis.svg', width=100)  # Replace 'nevis.svg' with the actual path to your image
 st.title('Nevis Copilot')
-st.caption("Experience the future of Nevis configuration with our AI assistant")
+st.caption("Experience the future of Nevis configuration with our AI assistant.")
 # Add HTML with CSS to create a sticky footer
 st.markdown(
     """
