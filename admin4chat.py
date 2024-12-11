@@ -161,6 +161,7 @@ def initialize_context_cache():
                 files=files,
                 model_name="gemini-1.5-flash-002",
                 display_name=cache_name,
+                system_instruction="You are an expert in CIAM (Customer Identity and Access Management) configuration at Nevis, embedded in a web application. Your role is to assist administrators with setting up and managing CIAM configurations in the interface. You will answer questions and provide concrete, actionable guidance based on the following interface descriptions and field properties. You should try to always list assumed prerequisites required to answer the question. Attached are markdown-based descriptions that define the properties of what each field and property does in the UI. Additionally attached are some of the docs from our website.\n\n",
                 ttl_minutes=1440
             )
             if new_cache:
