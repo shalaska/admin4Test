@@ -11,8 +11,8 @@ st.set_page_config(layout="wide")
 
 # --- Admin4bot ---
 st.image('nevis.svg', width=100) 
-st.title('Admin4 Assistant')
-st.caption("Ask any questions related to admin4 or patterns")
+st.title('Nevis Copilot')
+st.caption("Experience the future of Nevis configuration with our AI assistant")
 
 # --- Gemini setup ---
 load_dotenv()
