@@ -138,6 +138,19 @@ def delete_oldest_caches(existing_caches, current_cache_name):
 def initialize_context_cache():
     cache_name = f"Nevis Docs Cache - {uuid.uuid4()}"
     try:
+        # 1. Check for existing caches
+        existing_caches = list(caching.CachedContent.list())
+        found_cache = None
+        for cache in existing_caches:
+            if cache.display_name.startswith("Nevis Docs Cache"):
+                found_cache = cache
+                print(f"Found existing cache: {cache.display_name} (ID: {cache.name})")
+                break
+
+        if found_cache:
+            return found_cache
+
+        # 2. If no suitable cache is found, create a new one
         files = load_and_upload_files()
 
         # Attempt to create the cache with retries
@@ -151,7 +164,7 @@ def initialize_context_cache():
                 ttl_minutes=1440
             )
             if new_cache:
-                break  # Cache created successfully
+                break
             else:
                 retries += 1
                 print(f"Cache creation failed (attempt {retries}/{max_retries}). Clearing existing caches and retrying...")
