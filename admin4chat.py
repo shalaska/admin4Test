@@ -7,14 +7,14 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from google.generativeai import caching
 
-
 # Set page config to wide mode
 st.set_page_config(layout="wide")
 
 # --- Nevis Copilot ---
-st.image('nevis.svg', width=100) 
+st.image('nevis.svg', width=100)
 st.title('Nevis Copilot')
-st.caption("Experience the future of Nevis configuration with our AI assistant.")
+st.caption(
+    "Experience the future of Nevis configuration with our AI assistant.")
 # Add HTML with CSS to create a sticky footer
 st.markdown(
     """
@@ -27,41 +27,37 @@ st.markdown(
             background-color: #f0f0f5; 
             padding: 10px;
             text-align: center;
-            z-index: 100; /* Add this line */
+            z-index: 100; 
         }
     </style>
     <div class="sticky-footer">
         The Nevis Copilot is an experimental AI assistant. The answers may contain errors and should be carefully reviewed.
     </div>
     """,
-    unsafe_allow_html=True
-)
-
+    unsafe_allow_html=True)
 
 # --- Gemini setup ---
 load_dotenv()
 gemini_api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=gemini_api_key)
 
+
 def upload_to_gemini(path, mime_type=None):
     """Uploads the given file to Gemini, but only if it hasn't been uploaded already."""
-    # Get a list of existing files in Gemini
     existing_files = list(genai.list_files())
     existing_file_names = [file.display_name for file in existing_files]
-
-    # Check if the file has already been uploaded
     if os.path.basename(path) in existing_file_names:
         print(f"File '{path}' already exists in Gemini. Skipping upload.")
-        # Find the existing file object
-        file = next((file for file in existing_files if file.display_name == os.path.basename(path)), None)
+        file = next(
+            (file for file in existing_files
+             if file.display_name == os.path.basename(path)), None)
         if file is None:
             raise ValueError(f"Could not find existing file object for '{path}'")
     else:
-        # If the file doesn't exist, upload it
         file = genai.upload_file(path, mime_type=mime_type)
         print(f"Uploaded file '{file.display_name}' as: {file.uri}")
-
     return file
+
 
 def wait_for_files_active(files):
     """Waits for the given files to be active."""
@@ -70,25 +66,39 @@ def wait_for_files_active(files):
         while file.state.name == "PROCESSING":
             print(".", end="", flush=True)
             time.sleep(10)
-            file = genai.get_file(file.name)  # Refresh file status
+            file = genai.get_file(file.name)
         if file.state.name != "ACTIVE":
-            raise Exception(f"File {file.name} failed to process: {file.state.name}")
+            raise Exception(
+                f"File {file.name} failed to process: {file.state.name}")
     print("...all files ready")
+
 
 def load_and_upload_files():
     files = [
-        upload_to_gemini("patternspdf-compressed-compressed-pages-1.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-2.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-3.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-4.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-5.pdf", mime_type="application/pdf"),
-        upload_to_gemini("webapp_relevant_docs.txt", mime_type="text/plain")
+        upload_to_gemini(
+            "patternspdf-compressed-compressed-pages-1.pdf",
+            mime_type="application/pdf"),
+        upload_to_gemini(
+            "patternspdf-compressed-compressed-pages-2.pdf",
+            mime_type="application/pdf"),
+        upload_to_gemini(
+            "patternspdf-compressed-compressed-pages-3.pdf",
+            mime_type="application/pdf"),
+        upload_to_gemini(
+            "patternspdf-compressed-compressed-pages-4.pdf",
+            mime_type="application/pdf"),
+        upload_to_gemini(
+            "patternspdf-compressed-compressed-pages-5.pdf",
+            mime_type="application/pdf"),
+        upload_to_gemini("webapp_relevant_docs.txt",
+                         mime_type="text/plain")
     ]
     print(files)  # Print the list to inspect its contents
     for file in files:
         print(type(file))  # Print the type of each element
     wait_for_files_active(files)
     return files
+
 
 def create_context_cache(files, model_name, display_name, ttl_minutes):
     """Creates a context cache with the specified files."""
@@ -103,36 +113,30 @@ def create_context_cache(files, model_name, display_name, ttl_minutes):
         return cache
     except Exception as e:
         print(f"Error creating cache: {e}")
-        # Check if the error is related to the quota
-        if "TotalCachedContentStorageTokensPerModelFreeTier limit exceeded" in str(e):
-            return None
-        elif "'str' object has no attribute 'name'" in str(e):  # Check for the specific error
-            print("Error: One of the files is not a valid File object.")
+        if "TotalCachedContentStorageTokensPerModelFreeTier limit exceeded" in str(
+                e):
             return None
         else:
-            raise  # Re-raise other exceptions
-
-
+            raise
 
 
 def delete_oldest_caches(existing_caches, current_cache_name):
     """Deletes the oldest caches, excluding the current cache."""
     try:
-        # Exclude the current cache from deletion
-        caches_to_delete = [cache for cache in existing_caches
-                            if cache.display_name != current_cache_name]
-
-        # Sort remaining caches by creation time (oldest first)
+        caches_to_delete = [
+            cache for cache in existing_caches
+            if cache.display_name != current_cache_name
+        ]
         sorted_caches = sorted(caches_to_delete, key=lambda x: x.create_time)
-
-        # Delete only if there are caches to delete
         if sorted_caches:
-            cache_to_delete = sorted_caches[0]  # Delete the oldest one
-            print(f"Deleting old cache: {cache_to_delete.display_name} (ID: {cache_to_delete.name})")
+            cache_to_delete = sorted_caches[0]
+            print(
+                f"Deleting old cache: {cache_to_delete.display_name} (ID: {cache_to_delete.name})"
+            )
             caching.CachedContent.delete(cache_to_delete)
-
     except Exception as e:
         print(f"Failed to delete old caches: {e}")
+
 
 @st.cache_resource
 def initialize_context_cache():
@@ -144,7 +148,9 @@ def initialize_context_cache():
         for cache in existing_caches:
             if cache.display_name.startswith("Nevis Docs Cache"):
                 found_cache = cache
-                print(f"Found existing cache: {cache.display_name} (ID: {cache.name})")
+                print(
+                    f"Found existing cache: {cache.display_name} (ID: {cache.name})"
+                )
                 break
 
         if found_cache:
@@ -161,21 +167,20 @@ def initialize_context_cache():
                 files=files,
                 model_name="gemini-1.5-flash-002",
                 display_name=cache_name,
-                system_instruction="You are an expert in CIAM (Customer Identity and Access Management) configuration at Nevis, embedded in a web application. Your role is to assist administrators with setting up and managing CIAM configurations in the interface. You will answer questions and provide concrete, actionable guidance based on the following interface descriptions and field properties. You should try to always list assumed prerequisites required to answer the question. Attached are markdown-based descriptions that define the properties of what each field and property does in the UI. Additionally attached are some of the docs from our website.\n\n",
-                ttl_minutes=1440
-            )
+                ttl_minutes=1440)
             if new_cache:
                 break
             else:
                 retries += 1
-                print(f"Cache creation failed (attempt {retries}/{max_retries}). Clearing existing caches and retrying...")
-
-                # Clear all existing caches ONLY on retry
+                print(
+                    f"Cache creation failed (attempt {retries}/{max_retries}). Clearing existing caches and retrying..."
+                )
                 existing_caches = list(caching.CachedContent.list())
                 for cache in existing_caches:
-                    print(f"Deleting cache: {cache.display_name} (ID: {cache.name})")
+                    print(
+                        f"Deleting cache: {cache.display_name} (ID: {cache.name})"
+                    )
                     caching.CachedContent.delete(cache)
-
                 time.sleep(5)
 
         if new_cache is None:
@@ -186,20 +191,25 @@ def initialize_context_cache():
     except Exception as e:
         raise Exception(f"Failed to initialize context cache: {e}")
 
+
 # Initialize the context cache
 cache = initialize_context_cache()
 
-# Use cached context in the model
-model = genai.GenerativeModel.from_cached_content(cached_content=cache)
+# Print cache details for debugging
+print("Cache object:")
+print(cache)
+print("Cache type:", type(cache))
+if cache:
+    print("Cache name:", cache.name)
+    print("Cache display name:", cache.display_name)
+    # print("Cache contents:", cache.contents)  # Remove or comment out this line
 
-# System configuration
-generation_config = {
-    "temperature": 1,
-    "top_p": 0.95,
-    "top_k": 40,
-    "max_output_tokens": 8192,
-    "response_mime_type": "text/plain",
-}
+# Use cached context in the model with error handling
+try:
+    model = genai.GenerativeModel.from_cached_content(cached_content=cache)
+except Exception as e:
+    print(f"Error creating GenerativeModel: {e}")
+    st.error(f"An error occurred: {e}")
 
 def fetch_gemini_response(user_input, chat_session):
     """Fetches a response from the Gemini model."""
@@ -213,10 +223,15 @@ def fetch_gemini_response(user_input, chat_session):
 
 # Initialize chat session
 if "chat_session" not in st.session_state:
-    st.session_state.chat_session = model.start_chat(history=[
-        {"role": "user", "parts": [{"text": "Added Nevis docs"}]},
-        {"role": "assistant", "parts": [{"text": "Nevis docs processed and ready for questions."}]}
-    ])
+    try:
+        print(model)  # Print the model object for inspection
+        st.session_state.chat_session = model.start_chat(history=[
+            {"role": "user", "parts": [{"text": "Added Nevis docs"}]},
+            {"role": "assistant", "parts": [{"text": "Nevis docs processed and ready for questions."}]}
+        ])
+    except Exception as e:
+        print(f"Error starting chat session: {e}")
+        st.error(f"An error occurred: {e}")
 
 # Initialize chat history in session state if not present
 if "chat_history" not in st.session_state:
@@ -229,7 +244,6 @@ for message in st.session_state.chat_history:
 
 # Input for new user queries
 user_input = st.chat_input("Ask Nevis Copilot anything...")
-
 
 if user_input:
     # Display the user message immediately
