@@ -2,17 +2,17 @@ import os
 import time
 import datetime
 import uuid
+import traceback
 import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
 from google.generativeai import caching
 
-
 # Set page config to wide mode
 st.set_page_config(layout="wide")
 
 # --- Nevis Copilot ---
-st.image('nevis.svg', width=100) 
+st.image('nevis.svg', width=100)
 st.title('Nevis Copilot')
 st.caption("Experience the future of Nevis configuration with our AI assistant.")
 # Add HTML with CSS to create a sticky footer
@@ -27,7 +27,7 @@ st.markdown(
             background-color: #f0f0f5; 
             padding: 10px;
             text-align: center;
-            z-index: 100; /* Add this line */
+            z-index: 100; 
         }
     </style>
     <div class="sticky-footer">
@@ -37,58 +37,76 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
 # --- Gemini setup ---
 load_dotenv()
 gemini_api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=gemini_api_key)
 
+
 def upload_to_gemini(path, mime_type=None):
     """Uploads the given file to Gemini, but only if it hasn't been uploaded already."""
-    # Get a list of existing files in Gemini
-    existing_files = list(genai.list_files())
-    existing_file_names = [file.display_name for file in existing_files]
+    try:
+        # Get a list of existing files in Gemini
+        existing_files = list(genai.list_files())
+        existing_file_names = [file.display_name for file in existing_files]
 
-    # Check if the file has already been uploaded
-    if os.path.basename(path) in existing_file_names:
-        print(f"File '{path}' already exists in Gemini. Skipping upload.")
-        # Find the existing file object
-        file = next((file for file in existing_files if file.display_name == os.path.basename(path)), None)
-        if file is None:
-            raise ValueError(f"Could not find existing file object for '{path}'")
-    else:
-        # If the file doesn't exist, upload it
-        file = genai.upload_file(path, mime_type=mime_type)
-        print(f"Uploaded file '{file.display_name}' as: {file.uri}")
+        # Check if the file has already been uploaded
+        if os.path.basename(path) in existing_file_names:
+            print(f"File '{path}' already exists in Gemini. Skipping upload.")
+            # Find the existing file object
+            file = next((file for file in existing_files if file.display_name == os.path.basename(path)), None)
+            if file is None:
+                raise ValueError(f"Could not find existing file object for '{path}'")
+        else:
+            # If the file doesn't exist, upload it
+            file = genai.upload_file(path, mime_type=mime_type)
+            print(f"Uploaded file '{file.display_name}' as: {file.uri}")
 
-    return file
+        return file
+    except Exception as e:
+        print(f"Error in upload_to_gemini: {e}")
+        traceback.print_exc()
+        raise
+
 
 def wait_for_files_active(files):
     """Waits for the given files to be active."""
-    print("Waiting for file processing...")
-    for file in files:
-        while file.state.name == "PROCESSING":
-            print(".", end="", flush=True)
-            time.sleep(10)
-            file = genai.get_file(file.name)  # Refresh file status
-        if file.state.name != "ACTIVE":
-            raise Exception(f"File {file.name} failed to process: {file.state.name}")
-    print("...all files ready")
+    try:
+        print("Waiting for file processing...")
+        for file in files:
+            while file.state.name == "PROCESSING":
+                print(".", end="", flush=True)
+                time.sleep(10)
+                file = genai.get_file(file.name)  # Refresh file status
+            if file.state.name != "ACTIVE":
+                raise Exception(f"File {file.name} failed to process: {file.state.name}")
+        print("...all files ready")
+    except Exception as e:
+        print(f"Error in wait_for_files_active: {e}")
+        traceback.print_exc()
+        raise
+
 
 def load_and_upload_files():
-    files = [
-        upload_to_gemini("patternspdf-compressed-compressed-pages-1.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-2.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-3.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-4.pdf", mime_type="application/pdf"),
-        upload_to_gemini("patternspdf-compressed-compressed-pages-5.pdf", mime_type="application/pdf"),
-        upload_to_gemini("webapp_relevant_docs.txt", mime_type="text/plain")
-    ]
-    print(files)  # Print the list to inspect its contents
-    for file in files:
-        print(type(file))  # Print the type of each element
-    wait_for_files_active(files)
-    return files
+    try:
+        files = [
+            upload_to_gemini("patternspdf-compressed-compressed-pages-1.pdf", mime_type="application/pdf"),
+            upload_to_gemini("patternspdf-compressed-compressed-pages-2.pdf", mime_type="application/pdf"),
+            upload_to_gemini("patternspdf-compressed-compressed-pages-3.pdf", mime_type="application/pdf"),
+            upload_to_gemini("patternspdf-compressed-compressed-pages-4.pdf", mime_type="application/pdf"),
+            upload_to_gemini("patternspdf-compressed-compressed-pages-5.pdf", mime_type="application/pdf"),
+            upload_to_gemini("webapp_relevant_docs.txt", mime_type="text/plain")
+        ]
+        print(files)  # Print the list to inspect its contents
+        for file in files:
+            print(type(file))  # Print the type of each element
+        wait_for_files_active(files)
+        return files
+    except Exception as e:
+        print(f"Error in load_and_upload_files: {e}")
+        traceback.print_exc()
+        raise
+
 
 def create_context_cache(files, model_name, display_name, ttl_minutes):
     """Creates a context cache with the specified files."""
@@ -103,6 +121,7 @@ def create_context_cache(files, model_name, display_name, ttl_minutes):
         return cache
     except Exception as e:
         print(f"Error creating cache: {e}")
+        traceback.print_exc()
         # Check if the error is related to the quota
         if "TotalCachedContentStorageTokensPerModelFreeTier limit exceeded" in str(e):
             return None
@@ -111,8 +130,6 @@ def create_context_cache(files, model_name, display_name, ttl_minutes):
             return None
         else:
             raise  # Re-raise other exceptions
-
-
 
 
 def delete_oldest_caches(existing_caches, current_cache_name):
@@ -133,6 +150,8 @@ def delete_oldest_caches(existing_caches, current_cache_name):
 
     except Exception as e:
         print(f"Failed to delete old caches: {e}")
+        traceback.print_exc()
+
 
 @st.cache_resource
 def initialize_context_cache():
@@ -148,7 +167,14 @@ def initialize_context_cache():
                 break
 
         if found_cache:
-            return found_cache
+            # Check if the cache is expired
+            now = datetime.datetime.now(datetime.timezone.utc)  # Make 'now' timezone-aware (UTC)
+            cache_age = now - found_cache.create_time
+            if cache_age > datetime.timedelta(minutes=1440):  # 24 hours
+                print(f"Cache '{found_cache.display_name}' is expired. Deleting...")
+                caching.CachedContent.delete(found_cache)
+            else:
+                return found_cache
 
         # 2. If no suitable cache is found, create a new one
         files = load_and_upload_files()
@@ -184,7 +210,10 @@ def initialize_context_cache():
         return new_cache
 
     except Exception as e:
+        print(f"Error in initialize_context_cache: {e}")
+        traceback.print_exc()
         raise Exception(f"Failed to initialize context cache: {e}")
+
 
 # Initialize the context cache
 cache = initialize_context_cache()
@@ -201,6 +230,7 @@ generation_config = {
     "response_mime_type": "text/plain",
 }
 
+
 def fetch_gemini_response(user_input, chat_session):
     """Fetches a response from the Gemini model."""
     try:
@@ -209,7 +239,9 @@ def fetch_gemini_response(user_input, chat_session):
     except Exception as e:
         error_message = f"An error occurred while fetching the response: {e}"
         print(error_message)
+        traceback.print_exc()
         return {"response": None, "error": error_message}
+
 
 # Initialize chat session
 if "chat_session" not in st.session_state:
@@ -229,7 +261,6 @@ for message in st.session_state.chat_history:
 
 # Input for new user queries
 user_input = st.chat_input("Ask Nevis Copilot anything...")
-
 
 if user_input:
     # Display the user message immediately
