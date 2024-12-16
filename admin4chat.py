@@ -187,7 +187,6 @@ def initialize_context_cache():
                 files=files,
                 model_name="gemini-1.5-flash-002",
                 display_name=cache_name,
-                system_instruction="You are an expert in CIAM (Customer Identity and Access Management) configuration at Nevis, embedded in a web application. Your role is to assist administrators with setting up and managing CIAM configurations in the interface. You will answer questions and provide concrete, actionable guidance based on the following interface descriptions and field properties. You should try to always list assumed prerequisites required to answer the question. Attached are markdown-based descriptions that define the properties of what each field and property does in the UI. Additionally attached are some of the docs from our website.\n\n",
                 ttl_minutes=1440
             )
             if new_cache:
@@ -218,10 +217,8 @@ def initialize_context_cache():
 # Initialize the context cache
 cache = initialize_context_cache()
 
-# Use cached context in the model
-model = genai.GenerativeModel.from_cached_content(cached_content=cache)
-
 # System configuration
+system_instruction="You are an expert in CIAM (Customer Identity and Access Management) configuration at Nevis, embedded in a web application. Your role is to assist administrators with setting up and managing CIAM configurations in the interface. You will answer questions and provide concrete, actionable guidance based on the following interface descriptions and field properties. You should try to always list assumed prerequisites required to answer the question. Attached are markdown-based descriptions that define the properties of what each field and property does in the UI. Additionally attached are some of the docs from our website.\n\n"
 generation_config = {
     "temperature": 1,
     "top_p": 0.95,
@@ -229,6 +226,13 @@ generation_config = {
     "max_output_tokens": 8192,
     "response_mime_type": "text/plain",
 }
+
+# Use cached context in the model
+model = genai.GenerativeModel(
+  model_name="gemini-1.5-flash-002",
+  generation_config=generation_config,
+  system_instruction=system_instruction
+)
 
 
 def fetch_gemini_response(user_input, chat_session):
