@@ -153,6 +153,18 @@ def delete_oldest_caches(existing_caches, current_cache_name):
         traceback.print_exc()
 
 
+def delete_all_caches():
+    """Deletes all context caches."""
+    try:
+        existing_caches = list(caching.CachedContent.list())
+        for cache in existing_caches:
+            print(f"Deleting cache: {cache.display_name} (ID: {cache.name})")
+            caching.CachedContent.delete(cache)
+    except Exception as e:
+        print(f"Failed to delete all caches: {e}")
+        traceback.print_exc()
+
+
 @st.cache_resource
 def initialize_context_cache():
     cache_name = f"Nevis Docs Cache - {uuid.uuid4()}"
@@ -271,18 +283,32 @@ if user_input:
     st.chat_message("user").markdown(user_input)
     st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-    with st.spinner("Thinking..."):
-        try:
-            # Fetch Gemini response
-            gemini_response = fetch_gemini_response(user_input, st.session_state.chat_session)
+    # Check for the "delete cache" command
+    if user_input.strip().lower() == "delete cache":
+        with st.spinner("Deleting cache and re-initializing..."):
+            try:
+                delete_all_caches() 
+                initialize_context_cache()  # Re-initialize the cache
+                st.session_state.chat_session = model.start_chat(history=[
+                    {"role": "user", "parts": [{"text": "Added Nevis docs"}]},
+                    {"role": "assistant", "parts": [{"text": "Nevis docs processed and ready for questions."}]}
+                ])  # Reset the chat session
+                st.success("Cache deleted and re-initialized successfully!")
+            except Exception as e:
+                st.error(f"An error occurred while deleting and re-initializing the cache: {e}")
+    else:
+        with st.spinner("Thinking..."):
+            try:
+                # Fetch Gemini response
+                gemini_response = fetch_gemini_response(user_input, st.session_state.chat_session)
 
-            # Check for errors in the response
-            if gemini_response.get("error"):
-                st.error(gemini_response["error"])  # Display the error message
-            else:
-                # Update chat history and display the response
-                st.session_state.chat_history.append({"role": "assistant", "content": gemini_response["response"]})
-                st.chat_message("assistant").markdown(gemini_response["response"])
+                # Check for errors in the response
+                if gemini_response.get("error"):
+                    st.error(gemini_response["error"])  # Display the error message
+                else:
+                    # Update chat history and display the response
+                    st.session_state.chat_history.append({"role": "assistant", "content": gemini_response["response"]})
+                    st.chat_message("assistant").markdown(gemini_response["response"])
 
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
